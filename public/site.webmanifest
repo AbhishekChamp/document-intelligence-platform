@@ -1,0 +1,16 @@
+{
+  "name": "DocuIntel - Document Intelligence Platform",
+  "short_name": "DocuIntel",
+  "description": "Privacy-first document quality analysis with spell checking, grammar analysis, readability metrics, and compliance checking",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#8b5cf6",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
