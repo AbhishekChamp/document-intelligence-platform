@@ -1,18 +1,18 @@
 import type { Token } from '../types/domain.types';
 
-export function tokenize(text: string): Token[] {
+export function tokenize(inputText: string): Token[] {
   const tokens: Token[] = [];
   let index = 0;
   
-  while (index < text.length) {
-    const char = text[index];
+  while (index < inputText.length) {
+    const char = inputText[index];
     const startIndex = index;
     
     if (/\s/.test(char)) {
       let text = char;
       index++;
-      while (index < text.length && /\s/.test(text[index])) {
-        text += text[index];
+      while (index < inputText.length && /\s/.test(inputText[index])) {
+        text += inputText[index];
         index++;
       }
       tokens.push({ text, startIndex, endIndex: index, type: 'whitespace' });
@@ -22,8 +22,8 @@ export function tokenize(text: string): Token[] {
     if (/\d/.test(char)) {
       let text = char;
       index++;
-      while (index < text.length && /[\d.,]/.test(text[index])) {
-        text += text[index];
+      while (index < inputText.length && /[\d.,]/.test(inputText[index])) {
+        text += inputText[index];
         index++;
       }
       tokens.push({ text, startIndex, endIndex: index, type: 'number' });
@@ -33,8 +33,8 @@ export function tokenize(text: string): Token[] {
     if (/[a-zA-Z]/.test(char)) {
       let text = char;
       index++;
-      while (index < text.length && /[a-zA-Z']/.test(text[index])) {
-        text += text[index];
+      while (index < inputText.length && /[a-zA-Z']/.test(inputText[index])) {
+        text += inputText[index];
         index++;
       }
       tokens.push({ text, startIndex, endIndex: index, type: 'word' });

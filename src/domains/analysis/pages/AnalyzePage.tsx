@@ -70,7 +70,8 @@ export const AnalyzePage: React.FC = () => {
       toast.success(`Analysis complete! Found ${result.issues.length} issues.`);
     } catch (error) {
       console.error('Analysis failed:', error);
-      toast.error('Failed to analyze document. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Analysis failed: ${errorMessage}`);
     } finally {
       setIsAnalyzing(false);
       setAnalysisProgressMessage('');
