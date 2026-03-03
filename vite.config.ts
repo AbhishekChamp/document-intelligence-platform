@@ -1,11 +1,27 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
+import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
+    viteStaticCopy({
+      targets: [
+        // Copy PDF.js worker to public directory for production
+        {
+          src: path.resolve(__dirname, 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs'),
+          dest: '.'
+        },
+        // Copy Tesseract.js trained data (optional - can also load from CDN)
+        {
+          src: path.resolve(__dirname, 'node_modules/tesseract.js/dist/worker.min.js'),
+          dest: 'tesseract'
+        }
+      ]
+    }),
     mode === 'analyze' && visualizer({
       open: true,
       gzipSize: true,
