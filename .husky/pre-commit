@@ -1,0 +1,3 @@
+#!/bin/sh
+# Run linting only on staged files without timing out
+npx lint-staged --concurrent false

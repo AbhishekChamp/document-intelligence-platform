@@ -1,85 +1,155 @@
-import React, { useState } from 'react';
-import toast from 'react-hot-toast';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../shared/components/Card';
-import { Button } from '../../shared/components/Button';
-import { ConfirmDialog } from '../../shared/components/Dialog';
-import { useStore } from '../../shared/hooks/useStore';
-import { useTheme } from '../providers/ThemeProvider';
-import { analysisOrchestrator } from '../../domains/analysis/analysis-orchestrator';
-import { db } from '../../infrastructure/caching/db';
-import { 
-  CheckCircle, BookOpen, ShieldAlert, BarChart3, Gauge,
-  ToggleLeft, ToggleRight, Sun, Moon, Trash2, Info,
-  Sparkles, FileText, Zap, FileCode, Image as ImageIcon, FileType2
-} from 'lucide-react';
+import React, { useState } from "react";
+import toast from "react-hot-toast";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardDescription,
+} from "../../shared/components/Card";
+import { Button } from "../../shared/components/Button";
+import { ConfirmDialog } from "../../shared/components/Dialog";
+import { useStore } from "../../shared/hooks/useStore";
+import { useTheme } from "../providers/ThemeProvider";
+import { analysisOrchestrator } from "../../domains/analysis/analysis-orchestrator";
+import { db } from "../../infrastructure/caching/db";
+import {
+  CheckCircle,
+  BookOpen,
+  ShieldAlert,
+  BarChart3,
+  Gauge,
+  ToggleLeft,
+  ToggleRight,
+  Sun,
+  Moon,
+  Trash2,
+  Info,
+  Sparkles,
+  FileText,
+  Zap,
+  FileCode,
+  Image as ImageIcon,
+  FileType2,
+} from "lucide-react";
 
 const ENGINE_INFO = [
   {
-    key: 'spell',
-    name: 'Spell Engine',
-    description: 'Detects spelling errors and suggests corrections using a comprehensive dictionary.',
+    key: "spell",
+    name: "Spell Engine",
+    description:
+      "Detects spelling errors and suggests corrections using a comprehensive dictionary.",
     icon: CheckCircle,
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-50 dark:bg-blue-900/20',
-    gradient: 'from-blue-500 to-cyan-500'
+    color: "text-blue-500",
+    bgColor: "bg-blue-50 dark:bg-blue-900/20",
+    gradient: "from-blue-500 to-cyan-500",
   },
   {
-    key: 'grammar',
-    name: 'Grammar Engine',
-    description: 'Analyzes grammar patterns including repeated words, punctuation errors, and sentence structure.',
+    key: "grammar",
+    name: "Grammar Engine",
+    description:
+      "Analyzes grammar patterns including repeated words, punctuation errors, and sentence structure.",
     icon: BookOpen,
-    color: 'text-emerald-500',
-    bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
-    gradient: 'from-emerald-500 to-teal-500'
+    color: "text-emerald-500",
+    bgColor: "bg-emerald-50 dark:bg-emerald-900/20",
+    gradient: "from-emerald-500 to-teal-500",
   },
   {
-    key: 'readability',
-    name: 'Readability Engine',
-    description: 'Calculates readability metrics including Flesch score and provides improvement suggestions.',
+    key: "readability",
+    name: "Readability Engine",
+    description:
+      "Calculates readability metrics including Flesch score and provides improvement suggestions.",
     icon: BarChart3,
-    color: 'text-amber-500',
-    bgColor: 'bg-amber-50 dark:bg-amber-900/20',
-    gradient: 'from-amber-500 to-orange-500'
+    color: "text-amber-500",
+    bgColor: "bg-amber-50 dark:bg-amber-900/20",
+    gradient: "from-amber-500 to-orange-500",
   },
   {
-    key: 'compliance',
-    name: 'Compliance Engine',
-    description: 'Checks for enterprise compliance including tone, prohibited words, and sensitive content.',
+    key: "compliance",
+    name: "Compliance Engine",
+    description:
+      "Checks for enterprise compliance including tone, prohibited words, and sensitive content.",
     icon: ShieldAlert,
-    color: 'text-rose-500',
-    bgColor: 'bg-rose-50 dark:bg-rose-900/20',
-    gradient: 'from-rose-500 to-pink-500'
+    color: "text-rose-500",
+    bgColor: "bg-rose-50 dark:bg-rose-900/20",
+    gradient: "from-rose-500 to-pink-500",
   },
   {
-    key: 'confidence',
-    name: 'Confidence Engine',
-    description: 'Aggregates results from all engines to produce overall quality scores and confidence ratings.',
+    key: "confidence",
+    name: "Confidence Engine",
+    description:
+      "Aggregates results from all engines to produce overall quality scores and confidence ratings.",
     icon: Gauge,
-    color: 'text-violet-500',
-    bgColor: 'bg-violet-50 dark:bg-violet-900/20',
-    gradient: 'from-violet-500 to-purple-500'
-  }
+    color: "text-violet-500",
+    bgColor: "bg-violet-50 dark:bg-violet-900/20",
+    gradient: "from-violet-500 to-purple-500",
+  },
 ];
 
 const FILE_FORMATS = [
-  { name: 'Plain Text', ext: '.txt', icon: FileType2, color: 'text-gray-600', bgColor: 'bg-gray-100' },
-  { name: 'HTML', ext: '.html', icon: FileCode, color: 'text-orange-500', bgColor: 'bg-orange-100' },
-  { name: 'SVG', ext: '.svg', icon: ImageIcon, color: 'text-blue-500', bgColor: 'bg-blue-100' },
-  { name: 'PDF', ext: '.pdf', icon: FileText, color: 'text-rose-500', bgColor: 'bg-rose-100' },
-  { name: 'PNG', ext: '.png', icon: ImageIcon, color: 'text-purple-500', bgColor: 'bg-purple-100' },
-  { name: 'JPEG', ext: '.jpg', icon: ImageIcon, color: 'text-emerald-500', bgColor: 'bg-emerald-100' },
-  { name: 'WebP', ext: '.webp', icon: ImageIcon, color: 'text-amber-500', bgColor: 'bg-amber-100' },
+  {
+    name: "Plain Text",
+    ext: ".txt",
+    icon: FileType2,
+    color: "text-gray-600",
+    bgColor: "bg-gray-100",
+  },
+  {
+    name: "HTML",
+    ext: ".html",
+    icon: FileCode,
+    color: "text-orange-500",
+    bgColor: "bg-orange-100",
+  },
+  {
+    name: "SVG",
+    ext: ".svg",
+    icon: ImageIcon,
+    color: "text-blue-500",
+    bgColor: "bg-blue-100",
+  },
+  {
+    name: "PDF",
+    ext: ".pdf",
+    icon: FileText,
+    color: "text-rose-500",
+    bgColor: "bg-rose-100",
+  },
+  {
+    name: "PNG",
+    ext: ".png",
+    icon: ImageIcon,
+    color: "text-purple-500",
+    bgColor: "bg-purple-100",
+  },
+  {
+    name: "JPEG",
+    ext: ".jpg",
+    icon: ImageIcon,
+    color: "text-emerald-500",
+    bgColor: "bg-emerald-100",
+  },
+  {
+    name: "WebP",
+    ext: ".webp",
+    icon: ImageIcon,
+    color: "text-amber-500",
+    bgColor: "bg-amber-100",
+  },
 ];
 
 export const SettingsPage: React.FC = () => {
-  const { engineConfigs, toggleEngine, clearDocumentIds, setCurrentAnalysis } = useStore();
+  const { engineConfigs, toggleEngine, clearDocumentIds, setCurrentAnalysis } =
+    useStore();
   const { theme, setTheme } = useTheme();
   const [showClearDialog, setShowClearDialog] = useState(false);
 
   const handleToggle = (key: string) => {
     toggleEngine(key);
     analysisOrchestrator.setEngineEnabled(key, !engineConfigs[key]?.enabled);
-    toast.success(`${ENGINE_INFO.find(e => e.key === key)?.name} ${engineConfigs[key]?.enabled ? 'disabled' : 'enabled'}`);
+    toast.success(
+      `${ENGINE_INFO.find((e) => e.key === key)?.name} ${engineConfigs[key]?.enabled ? "disabled" : "enabled"}`,
+    );
   };
 
   const handleClearAllData = async () => {
@@ -87,9 +157,9 @@ export const SettingsPage: React.FC = () => {
       await db.clearAnalyses();
       clearDocumentIds();
       setCurrentAnalysis(null);
-      toast.success('All data cleared successfully');
-    } catch (error) {
-      toast.error('Failed to clear data');
+      toast.success("All data cleared successfully");
+    } catch {
+      toast.error("Failed to clear data");
     }
   };
 
@@ -116,50 +186,72 @@ export const SettingsPage: React.FC = () => {
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
             <button
-              onClick={() => setTheme('light')}
+              onClick={() => setTheme("light")}
               className={`
                 flex items-center gap-4 p-5 rounded-2xl border-2 transition-all duration-300
-                ${theme === 'light' 
-                  ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 shadow-lg shadow-violet-500/20' 
-                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                ${
+                  theme === "light"
+                    ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20 shadow-lg shadow-violet-500/20"
+                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                 }
               `}
             >
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
-                theme === 'light' ? 'bg-violet-500' : 'bg-amber-100 dark:bg-amber-900/30'
-              }`}>
-                <Sun className={`w-7 h-7 ${theme === 'light' ? 'text-white' : 'text-amber-600'}`} />
+              <div
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                  theme === "light"
+                    ? "bg-violet-500"
+                    : "bg-amber-100 dark:bg-amber-900/30"
+                }`}
+              >
+                <Sun
+                  className={`w-7 h-7 ${theme === "light" ? "text-white" : "text-amber-600"}`}
+                />
               </div>
               <div className="text-left">
-                <p className={`font-semibold ${theme === 'light' ? 'text-violet-900' : 'text-gray-900 dark:text-white'}`}>
+                <p
+                  className={`font-semibold ${theme === "light" ? "text-violet-900" : "text-gray-900 dark:text-white"}`}
+                >
                   Light Mode
                 </p>
-                <p className={`text-sm ${theme === 'light' ? 'text-violet-600' : 'text-gray-500'}`}>
+                <p
+                  className={`text-sm ${theme === "light" ? "text-violet-600" : "text-gray-500"}`}
+                >
                   Clean and bright interface
                 </p>
               </div>
             </button>
 
             <button
-              onClick={() => setTheme('dark')}
+              onClick={() => setTheme("dark")}
               className={`
                 flex items-center gap-4 p-5 rounded-2xl border-2 transition-all duration-300
-                ${theme === 'dark' 
-                  ? 'border-violet-500 bg-violet-900/20 shadow-lg shadow-violet-500/20' 
-                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                ${
+                  theme === "dark"
+                    ? "border-violet-500 bg-violet-900/20 shadow-lg shadow-violet-500/20"
+                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                 }
               `}
             >
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
-                theme === 'dark' ? 'bg-violet-500' : 'bg-slate-100 dark:bg-slate-800'
-              }`}>
-                <Moon className={`w-7 h-7 ${theme === 'dark' ? 'text-white' : 'text-slate-600'}`} />
+              <div
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                  theme === "dark"
+                    ? "bg-violet-500"
+                    : "bg-slate-100 dark:bg-slate-800"
+                }`}
+              >
+                <Moon
+                  className={`w-7 h-7 ${theme === "dark" ? "text-white" : "text-slate-600"}`}
+                />
               </div>
               <div className="text-left">
-                <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+                <p
+                  className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900 dark:text-white"}`}
+                >
                   Dark Mode
                 </p>
-                <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}>
+                <p
+                  className={`text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-500"}`}
+                >
                   Easy on the eyes
                 </p>
               </div>
@@ -174,7 +266,9 @@ export const SettingsPage: React.FC = () => {
             <Zap className="w-5 h-5 text-violet-500" />
             Analysis Engines
           </CardTitle>
-          <CardDescription>Enable or disable individual validation engines</CardDescription>
+          <CardDescription>
+            Enable or disable individual validation engines
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {ENGINE_INFO.map((engine) => {
@@ -183,22 +277,27 @@ export const SettingsPage: React.FC = () => {
             const isEnabled = config?.enabled ?? true;
 
             return (
-              <div 
+              <div
                 key={engine.key}
                 className={`
                   flex items-start gap-4 p-5 rounded-2xl border-2 transition-all duration-300
-                  ${isEnabled 
-                    ? 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800' 
-                    : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 opacity-75'
+                  ${
+                    isEnabled
+                      ? "border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      : "border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 opacity-75"
                   }
                 `}
               >
-                <div className={`w-14 h-14 ${engine.bgColor} rounded-2xl flex items-center justify-center flex-shrink-0`}>
+                <div
+                  className={`w-14 h-14 ${engine.bgColor} rounded-2xl flex items-center justify-center flex-shrink-0`}
+                >
                   <Icon className={`w-7 h-7 ${engine.color}`} />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-white">{engine.name}</h3>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">
+                      {engine.name}
+                    </h3>
                     <button
                       onClick={() => handleToggle(engine.key)}
                       className="transition-transform duration-200 hover:scale-110"
@@ -210,10 +309,12 @@ export const SettingsPage: React.FC = () => {
                       )}
                     </button>
                   </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{engine.description}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {engine.description}
+                  </p>
                   <div className="flex items-center gap-2 mt-3">
                     <span className="text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-600 dark:text-gray-400">
-                      v{config?.version || '1.0.0'}
+                      v{config?.version || "1.0.0"}
                     </span>
                     {isEnabled && (
                       <span className="text-xs px-3 py-1 bg-emerald-100 dark:bg-emerald-900/30 rounded-full text-emerald-600 dark:text-emerald-400 font-medium">
@@ -239,9 +340,12 @@ export const SettingsPage: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-4 bg-rose-50 dark:bg-rose-900/20 rounded-xl">
             <div>
-              <h4 className="font-semibold text-rose-900 dark:text-rose-400">Clear All Data</h4>
+              <h4 className="font-semibold text-rose-900 dark:text-rose-400">
+                Clear All Data
+              </h4>
               <p className="text-sm text-rose-700 dark:text-rose-300">
-                This will permanently delete all analysis history and reset the dashboard
+                This will permanently delete all analysis history and reset the
+                dashboard
               </p>
             </div>
             <Button variant="danger" onClick={() => setShowClearDialog(true)}>
@@ -258,21 +362,27 @@ export const SettingsPage: React.FC = () => {
             <FileText className="w-5 h-5 text-violet-500" />
             Supported Document Formats
           </CardTitle>
-          <CardDescription>Upload and analyze documents in these formats</CardDescription>
+          <CardDescription>
+            Upload and analyze documents in these formats
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-4 md:grid-cols-7 gap-4">
             {FILE_FORMATS.map((format) => {
               const Icon = format.icon;
               return (
-                <div 
+                <div
                   key={format.ext}
                   className="flex flex-col items-center gap-2 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 hover:border-violet-200 dark:hover:border-violet-800 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-all"
                 >
-                  <div className={`w-12 h-12 ${format.bgColor} rounded-xl flex items-center justify-center`}>
+                  <div
+                    className={`w-12 h-12 ${format.bgColor} rounded-xl flex items-center justify-center`}
+                  >
                     <Icon className={`w-6 h-6 ${format.color}`} />
                   </div>
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{format.ext}</span>
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {format.ext}
+                  </span>
                 </div>
               );
             })}
@@ -290,24 +400,35 @@ export const SettingsPage: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="p-4 bg-white dark:bg-gray-800 rounded-xl">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Version</p>
-              <p className="font-semibold text-gray-900 dark:text-white">1.0.0</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Version
+              </p>
+              <p className="font-semibold text-gray-900 dark:text-white">
+                1.0.0
+              </p>
             </div>
             <div className="p-4 bg-white dark:bg-gray-800 rounded-xl">
-              <p className="text-sm text-gray-500 dark:text-gray-400">License</p>
-              <p className="font-semibold text-gray-900 dark:text-white">MIT License</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                License
+              </p>
+              <p className="font-semibold text-gray-900 dark:text-white">
+                MIT License
+              </p>
             </div>
           </div>
-          
+
           <div className="flex items-start gap-4 p-5 bg-white dark:bg-gray-800 rounded-xl">
             <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
               <Sparkles className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
-              <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Privacy First</h4>
+              <h4 className="font-semibold text-gray-900 dark:text-white mb-1">
+                Privacy First
+              </h4>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                All document processing happens locally in your browser. No data is sent to external servers, 
-                ensuring your documents remain private and secure.
+                All document processing happens locally in your browser. No data
+                is sent to external servers, ensuring your documents remain
+                private and secure.
               </p>
             </div>
           </div>

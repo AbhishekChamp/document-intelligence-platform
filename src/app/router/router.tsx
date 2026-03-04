@@ -1,26 +1,37 @@
-import { Suspense, lazy } from 'react';
-import { createRouter, createRoute, createRootRoute, Outlet } from '@tanstack/react-router';
-import { AppLayout } from '../layout/AppLayout';
-import { ErrorBoundary } from '../../shared/components/ErrorBoundary';
-import { Card, CardContent } from '../../shared/components/Card';
+import { Suspense, lazy } from "react";
+import {
+  createRouter,
+  createRoute,
+  createRootRoute,
+  Outlet,
+} from "@tanstack/react-router";
+import { AppLayout } from "../layout/AppLayout";
+import { ErrorBoundary } from "../../shared/components/ErrorBoundary";
+import { PageLoader } from "./PageLoader";
 
 // Lazy load pages for code splitting
-const AnalyzePage = lazy(() => import('../../domains/analysis/pages/AnalyzePage').then(m => ({ default: m.AnalyzePage })));
-const DashboardPage = lazy(() => import('../../domains/dashboard/pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
-const HistoryPage = lazy(() => import('../../domains/document/pages/HistoryPage').then(m => ({ default: m.HistoryPage })));
-const SettingsPage = lazy(() => import('../../app/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
-const AboutPage = lazy(() => import('../../app/pages/AboutPage').then(m => ({ default: m.AboutPage })));
-
-// Loading fallback component
-const PageLoader = () => (
-  <div className="min-h-[400px] flex items-center justify-center">
-    <Card className="w-full max-w-sm">
-      <CardContent className="p-8 text-center">
-        <div className="w-12 h-12 border-4 border-violet-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-gray-500 dark:text-gray-400">Loading...</p>
-      </CardContent>
-    </Card>
-  </div>
+const AnalyzePage = lazy(() =>
+  import("../../domains/analysis/pages/AnalyzePage").then((m) => ({
+    default: m.AnalyzePage,
+  })),
+);
+const DashboardPage = lazy(() =>
+  import("../../domains/dashboard/pages/DashboardPage").then((m) => ({
+    default: m.DashboardPage,
+  })),
+);
+const HistoryPage = lazy(() =>
+  import("../../domains/document/pages/HistoryPage").then((m) => ({
+    default: m.HistoryPage,
+  })),
+);
+const SettingsPage = lazy(() =>
+  import("../../app/pages/SettingsPage").then((m) => ({
+    default: m.SettingsPage,
+  })),
+);
+const AboutPage = lazy(() =>
+  import("../../app/pages/AboutPage").then((m) => ({ default: m.AboutPage })),
 );
 
 const rootRoute = createRootRoute({
@@ -35,7 +46,7 @@ const rootRoute = createRootRoute({
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/',
+  path: "/",
   component: () => (
     <Suspense fallback={<PageLoader />}>
       <AnalyzePage />
@@ -45,7 +56,7 @@ const indexRoute = createRoute({
 
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard',
+  path: "/dashboard",
   component: () => (
     <Suspense fallback={<PageLoader />}>
       <DashboardPage />
@@ -55,7 +66,7 @@ const dashboardRoute = createRoute({
 
 const historyRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/history',
+  path: "/history",
   component: () => (
     <Suspense fallback={<PageLoader />}>
       <HistoryPage />
@@ -65,7 +76,7 @@ const historyRoute = createRoute({
 
 const aboutRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/about',
+  path: "/about",
   component: () => (
     <Suspense fallback={<PageLoader />}>
       <AboutPage />
@@ -75,7 +86,7 @@ const aboutRoute = createRoute({
 
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/settings',
+  path: "/settings",
   component: () => (
     <Suspense fallback={<PageLoader />}>
       <SettingsPage />
@@ -91,13 +102,13 @@ const routeTree = rootRoute.addChildren([
   settingsRoute,
 ]);
 
-export const router = createRouter({ 
+export const router = createRouter({
   routeTree,
-  defaultPreload: 'intent',
+  defaultPreload: "intent",
   defaultPreloadStaleTime: 30_000,
 });
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router;
   }
