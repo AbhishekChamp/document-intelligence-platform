@@ -4,6 +4,7 @@ import { cn } from "../../shared/utils/cn";
 import { useStore } from "../../shared/hooks/useStore";
 import { useTheme } from "../providers/ThemeProvider";
 import { Sun, Moon, Info } from "lucide-react";
+import { GitHubIcon } from "../../shared/components/icons";
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
@@ -66,6 +67,17 @@ const HeaderComponent: React.FC<HeaderProps> = ({ sidebarCollapsed }) => {
         </Link>
 
         <div className="h-8 w-px bg-gray-200 dark:bg-gray-700 mx-2" />
+
+        <a
+          href="https://github.com/AbhishekChamp/document-intelligence-platform"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-2.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all"
+          aria-label="View on GitHub"
+          title="View on GitHub"
+        >
+          <GitHubIcon className="w-5 h-5" />
+        </a>
 
         <button
           onClick={toggleTheme}

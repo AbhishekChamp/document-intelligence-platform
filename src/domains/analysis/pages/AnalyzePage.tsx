@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 import { FileUpload } from "../../../shared/components/FileUpload";
 import { TextEditor } from "../../../shared/components/TextEditor";
@@ -117,7 +117,13 @@ export const AnalyzePage: React.FC = () => {
 
         setCurrentAnalysis(result);
         addDocumentId(result.documentId);
-        await db.saveAnalysis(result);
+        // Save to history - non-critical operation, don't fail if it errors
+        try {
+          await db.saveAnalysis(result);
+        } catch (dbError) {
+          console.warn("Failed to save analysis to history:", dbError);
+          // Don't show error to user, analysis still succeeded
+        }
         setShowUpload(false);
         toast.success(
           `Analysis complete! Found ${result.issues.length} issues.`,
@@ -158,7 +164,12 @@ export const AnalyzePage: React.FC = () => {
 
         setCurrentAnalysis(result);
         addDocumentId(result.documentId);
-        await db.saveAnalysis(result);
+        // Save to history - non-critical operation
+        try {
+          await db.saveAnalysis(result);
+        } catch (dbError) {
+          console.warn("Failed to save analysis to history:", dbError);
+        }
         setShowUpload(false);
         toast.success(
           `Analysis complete! Found ${result.issues.length} issues.`,
@@ -201,18 +212,17 @@ export const AnalyzePage: React.FC = () => {
     toast.success("Analysis exported successfully!");
   }, [currentAnalysis]);
 
-  const getIssueCounts = () => {
+  const counts = useMemo(() => {
     if (!currentAnalysis) return { high: 0, medium: 0, low: 0, total: 0 };
-    const issues = currentAnalysis.issues;
-    return {
-      high: issues.filter((i) => i.severity === "high").length,
-      medium: issues.filter((i) => i.severity === "medium").length,
-      low: issues.filter((i) => i.severity === "low").length,
-      total: issues.length,
-    };
-  };
-
-  const counts = getIssueCounts();
+    return currentAnalysis.issues.reduce(
+      (acc, issue) => {
+        acc[issue.severity]++;
+        acc.total++;
+        return acc;
+      },
+      { high: 0, medium: 0, low: 0, total: 0 },
+    );
+  }, [currentAnalysis]);
 
   if (showUpload) {
     return (
@@ -268,6 +278,32 @@ export const AnalyzePage: React.FC = () => {
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        {/* File Format Recommendations */}
+        <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-green-900 dark:text-green-300">
+                Recommended File Formats
+              </p>
+              <div className="mt-2 space-y-2">
+                <p className="text-xs text-green-800 dark:text-green-400">
+                  <span className="font-bold">✓ Best:</span> TXT, HTML — Perfect
+                  accuracy
+                </p>
+                <p className="text-xs text-green-800 dark:text-green-400">
+                  <span className="font-bold">✓ Good:</span> PDF — Works well
+                  for text-based documents
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  <span className="font-bold">⚠ Limited:</span> PNG, JPG, WEBP,
+                  SVG — OCR accuracy is unreliable. Results may be poor.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 

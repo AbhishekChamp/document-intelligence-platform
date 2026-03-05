@@ -14,6 +14,139 @@ interface DictionaryData {
   commonMisspellings: Record<string, string>;
 }
 
+// Web Worker for spell checking
+class SpellWorker {
+  private worker: Worker | null = null;
+  private pendingRequests: Map<
+    string,
+    { resolve: (value: string[]) => void; reject: (error: Error) => void }
+  > = new Map();
+  private requestId = 0;
+  private isWorkerAvailable = typeof Worker !== "undefined";
+
+  async init(): Promise<void> {
+    if (this.worker || !this.isWorkerAvailable) return;
+
+    try {
+      this.worker = new Worker("/workers/spell-worker.js");
+    } catch {
+      this.isWorkerAvailable = false;
+      return;
+    }
+
+    this.worker.onmessage = (event) => {
+      const { type, id, payload } = event.data;
+
+      if (type === "RESULT") {
+        const request = this.pendingRequests.get(id);
+        if (request) {
+          this.pendingRequests.delete(id);
+          request.resolve(payload);
+        }
+      }
+    };
+
+    this.worker.onerror = (error) => {
+      console.error("Spell worker error:", error);
+    };
+  }
+
+  async findSimilarWords(
+    word: string,
+    wordList: string[],
+    maxDistance: number = 1,
+  ): Promise<string[]> {
+    await this.init();
+
+    // If Worker is not available (e.g., in tests), use synchronous fallback
+    if (!this.isWorkerAvailable || !this.worker) {
+      return this.findSimilarWordsSync(word, wordList, maxDistance);
+    }
+
+    return new Promise((resolve, reject) => {
+      const id = `req-${++this.requestId}`;
+      this.pendingRequests.set(id, { resolve, reject });
+
+      // For smaller lists, do it directly without worker
+      if (wordList.length < 1000) {
+        const suggestions = this.findSimilarWordsSync(
+          word,
+          wordList,
+          maxDistance,
+        );
+        resolve(suggestions);
+        return;
+      }
+      this.worker!.postMessage({
+        type: "FIND_SIMILAR",
+        id,
+        payload: { word, wordList, maxDistance },
+      });
+    });
+  }
+
+  private findSimilarWordsSync(
+    word: string,
+    wordList: string[],
+    maxDistance: number = 1,
+  ): string[] {
+    const lowerWord = word.toLowerCase();
+    const scoredSuggestions: Array<{ word: string; score: number }> = [];
+
+    const minLength = Math.max(2, lowerWord.length - 1);
+    const maxLength = lowerWord.length + 1;
+
+    for (const dictWord of wordList) {
+      if (dictWord.length < minLength || dictWord.length > maxLength) continue;
+      if (dictWord.length <= 3 && lowerWord.length > 4) continue;
+
+      const distance = this.levenshteinDistance(lowerWord, dictWord);
+      if (distance <= maxDistance && distance > 0) {
+        const lengthDiff = Math.abs(dictWord.length - lowerWord.length);
+        const score = distance + lengthDiff * 0.5;
+        scoredSuggestions.push({ word: dictWord, score });
+      }
+    }
+
+    scoredSuggestions.sort((a, b) => a.score - b.score);
+    return scoredSuggestions.slice(0, 3).map((s) => s.word);
+  }
+
+  private levenshteinDistance(a: string, b: string): number {
+    const matrix: number[][] = [];
+    for (let i = 0; i <= b.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= a.length; j++) {
+      matrix[0][j] = j;
+    }
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1,
+          );
+        }
+      }
+    }
+    return matrix[b.length][a.length];
+  }
+
+  terminate(): void {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+    }
+    this.pendingRequests.clear();
+  }
+}
+
+const spellWorker = new SpellWorker();
+
 class DictionaryLoader {
   private dictionary: DictionaryData | null = null;
   private wordSet: Set<string> = new Set();
@@ -84,33 +217,12 @@ class DictionaryLoader {
     return this.dictionary?.abbreviations[word.toLowerCase()] || null;
   }
 
-  findSimilarWords(word: string, maxDistance: number = 1): string[] {
-    const lowerWord = word.toLowerCase();
-    const scoredSuggestions: Array<{ word: string; score: number }> = [];
-
-    // Don't suggest short words as corrections for longer words
-    const minLength = Math.max(2, lowerWord.length - 1);
-    const maxLength = lowerWord.length + 1;
-
-    for (const dictWord of this.wordSet) {
-      // Skip words that are too different in length
-      if (dictWord.length < minLength || dictWord.length > maxLength) continue;
-
-      // Skip very short dictionary words as suggestions for longer words
-      if (dictWord.length <= 3 && lowerWord.length > 4) continue;
-
-      const distance = levenshteinDistance(lowerWord, dictWord);
-      if (distance <= maxDistance && distance > 0) {
-        // Prioritize same-length words or words with similar length
-        const lengthDiff = Math.abs(dictWord.length - lowerWord.length);
-        const score = distance + lengthDiff * 0.5;
-        scoredSuggestions.push({ word: dictWord, score });
-      }
-    }
-
-    // Sort by score (lower is better) and return top 3
-    scoredSuggestions.sort((a, b) => a.score - b.score);
-    return scoredSuggestions.slice(0, 3).map((s) => s.word);
+  async findSimilarWords(
+    word: string,
+    maxDistance: number = 1,
+  ): Promise<string[]> {
+    const wordList = Array.from(this.wordSet);
+    return spellWorker.findSimilarWords(word, wordList, maxDistance);
   }
 
   getDictionaryInfo(): {
@@ -127,30 +239,30 @@ class DictionaryLoader {
       wordCount: this.wordSet.size,
     };
   }
-}
 
-function levenshteinDistance(a: string, b: string): number {
-  const matrix: number[][] = [];
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j;
-  }
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1,
-        );
+  levenshteinDistance(a: string, b: string): number {
+    const matrix: number[][] = [];
+    for (let i = 0; i <= b.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= a.length; j++) {
+      matrix[0][j] = j;
+    }
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1,
+          );
+        }
       }
     }
+    return matrix[b.length][a.length];
   }
-  return matrix[b.length][a.length];
 }
 
 // Singleton dictionary loader
@@ -213,7 +325,7 @@ export class SpellEngine implements ValidationEngine {
       }
 
       // Find similar words for suggestions
-      const suggestions = dictionaryLoader.findSimilarWords(word);
+      const suggestions = await dictionaryLoader.findSimilarWords(word);
 
       if (suggestions.length > 0) {
         // Check if this is an abbreviation that could be expanded
@@ -234,7 +346,10 @@ export class SpellEngine implements ValidationEngine {
           });
         } else {
           const confidence = Math.max(0.5, 0.85 - suggestions.length * 0.1);
-          const distance = levenshteinDistance(word, suggestions[0]);
+          const distance = dictionaryLoader.levenshteinDistance(
+            word,
+            suggestions[0],
+          );
           issues.push({
             id: generateId(),
             type: "spell",

@@ -1,7 +1,9 @@
 import * as pdfjs from "pdfjs-dist";
 import { createWorker, type Worker } from "tesseract.js";
+import DOMPurify from "dompurify";
 import type { ExtractedContent } from "../../shared/types/domain.types";
 import { stripHtml, normalizeWhitespace } from "../../shared/utils/text";
+import { preprocessImage, preprocessPdfPage } from "./image-preprocessor";
 
 // PDF.js TextItem interface for proper typing
 interface TextItem {
@@ -25,6 +27,8 @@ if (isDev) {
 export class TextExtractor {
   private worker: Worker | null = null;
   private workerPromise: Promise<Worker> | null = null;
+  private idleTimeout: ReturnType<typeof setTimeout> | null = null;
+  private readonly WORKER_IDLE_TIMEOUT = 120000; // 2 minutes for OCR operations
 
   async extractFromFile(file: File): Promise<ExtractedContent> {
     const mimeType = file.type;
@@ -251,18 +255,21 @@ export class TextExtractor {
             return;
           }
 
-          // Use 4x scale for SVG to ensure crisp text
-          const scale = 4;
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
+          // Calculate optimal size for OCR (target ~1800px width)
+          const targetWidth = 1800;
+          const scale = Math.max(1, targetWidth / img.width);
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
 
+          // White background
           ctx.fillStyle = "white";
           ctx.fillRect(0, 0, canvas.width, canvas.height);
+
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = "high";
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-          const blob = await new Promise<Blob | null>((res) =>
+          let blob = await new Promise<Blob | null>((res) =>
             canvas.toBlob(res, "image/png"),
           );
 
@@ -273,10 +280,24 @@ export class TextExtractor {
             return;
           }
 
+          // Try preprocessing for better OCR - conservative settings
+          try {
+            blob = await preprocessImage(blob, {
+              targetWidth: 1800,
+              enhanceContrast: false,
+              denoise: false,
+            });
+          } catch (preprocessErr) {
+            console.warn(
+              "SVG preprocessing failed, using original:",
+              preprocessErr,
+            );
+          }
+
           const result = await this.performOcr(blob);
 
           resolve({
-            text: normalizeWhitespace(result.text),
+            text: this.sanitizeText(normalizeWhitespace(result.text)),
             confidence: result.confidence,
             mimeType: mimeType,
           });
@@ -310,7 +331,10 @@ export class TextExtractor {
       const pdf = await loadingTask.promise;
 
       let fullText = "";
+      let hasTextContent = false;
       const pageTexts: string[] = [];
+      let totalConfidence = 0;
+      let ocrPageCount = 0;
 
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
@@ -322,8 +346,28 @@ export class TextExtractor {
         // Clean up the page text
         pageText = this.cleanPdfText(pageText);
 
-        if (pageText.trim()) {
-          pageTexts.push(pageText);
+        // Check if we got meaningful text
+        if (pageText.trim().length > 50) {
+          hasTextContent = true;
+          if (pageText.trim()) {
+            pageTexts.push(pageText);
+          }
+        } else {
+          // Low text content - try OCR on the page
+          try {
+            const ocrText = await this.extractPageWithOcr(page);
+            if (ocrText.text.trim()) {
+              pageTexts.push(ocrText.text);
+              totalConfidence += ocrText.confidence;
+              ocrPageCount++;
+            }
+          } catch (ocrError) {
+            console.warn(`OCR failed for page ${i}:`, ocrError);
+            // Use whatever text we got from PDF.js
+            if (pageText.trim()) {
+              pageTexts.push(pageText);
+            }
+          }
         }
 
         // Clean up page resources
@@ -332,9 +376,18 @@ export class TextExtractor {
 
       fullText = pageTexts.join("\n\n");
 
+      // Calculate overall confidence
+      let confidence: number | undefined;
+      if (ocrPageCount > 0) {
+        confidence = totalConfidence / ocrPageCount;
+      } else if (hasTextContent) {
+        confidence = 95; // High confidence for native PDF text
+      }
+
       return {
         text: fullText,
         mimeType: file.type,
+        confidence,
       };
     } catch (error) {
       console.error("PDF extraction error:", error);
@@ -360,6 +413,44 @@ export class TextExtractor {
         `Failed to extract text from PDF: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
+  }
+
+  /**
+   * Extract text from a PDF page using OCR (for scanned/image-based PDFs)
+   */
+  private async extractPageWithOcr(
+    page: pdfjs.PDFPageProxy,
+  ): Promise<{ text: string; confidence: number }> {
+    // Render page to canvas at high resolution
+    const scale = 2.5; // Higher scale for better OCR
+    const viewport = page.getViewport({ scale });
+
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+
+    if (!context) {
+      throw new Error("Could not get canvas context");
+    }
+
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    // White background
+    context.fillStyle = "white";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (page.render as any)({
+      canvasContext: context,
+      viewport: viewport,
+      background: "white",
+    }).promise;
+
+    // Preprocess the image
+    const processedBlob = await preprocessPdfPage(canvas);
+
+    // Perform OCR
+    return this.performOcr(processedBlob);
   }
 
   /**
@@ -435,18 +526,38 @@ export class TextExtractor {
   }
 
   private async extractFromImage(file: File): Promise<ExtractedContent> {
-    let imageUrl: string | null = null;
+    let objectUrl: string | null = null;
 
     try {
-      // Read file as data URL directly
-      imageUrl = await this.fileToDataUrl(file);
+      // First try with the original image
+      const originalUrl = URL.createObjectURL(file);
+      objectUrl = originalUrl;
 
-      // Perform OCR - Tesseract works best with original images
-      // Heavy preprocessing often hurts accuracy more than helps
-      const result = await this.performOcr(imageUrl);
+      let result;
+      try {
+        // Try preprocessing first - conservative settings
+        const processedBlob = await preprocessImage(file, {
+          targetWidth: 1800,
+          enhanceContrast: false,
+          denoise: false,
+        });
+
+        // Use processed image for OCR
+        URL.revokeObjectURL(originalUrl);
+        objectUrl = URL.createObjectURL(processedBlob);
+
+        result = await this.performOcr(objectUrl);
+      } catch (preprocessError) {
+        console.warn(
+          "Preprocessing failed, falling back to original image:",
+          preprocessError,
+        );
+        // Fall back to original image
+        result = await this.performOcr(objectUrl);
+      }
 
       return {
-        text: normalizeWhitespace(result.text),
+        text: this.sanitizeText(normalizeWhitespace(result.text)),
         confidence: result.confidence,
         mimeType: file.type,
       };
@@ -456,12 +567,19 @@ export class TextExtractor {
         `Failed to extract text from image: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     } finally {
-      // Cleanup
-      if (imageUrl) URL.revokeObjectURL(imageUrl);
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     }
   }
 
   private async getWorker(): Promise<Worker> {
+    // Cancel any pending idle timeout
+    if (this.idleTimeout) {
+      clearTimeout(this.idleTimeout);
+      this.idleTimeout = null;
+    }
+
     if (this.worker) {
       return this.worker;
     }
@@ -478,15 +596,47 @@ export class TextExtractor {
         console.error("Tesseract error:", err);
       },
       ...(workerPath ? { workerPath } : {}),
-    }).catch((err) => {
-      console.error("Failed to create Tesseract worker:", err);
+    }).catch(() => {
       this.workerPromise = null;
       throw new Error("OCR engine failed to initialize. Please try again.");
     });
 
     this.worker = await this.workerPromise;
 
+    // Configure Tesseract for optimal accuracy
+    await this.configureWorker();
+
     return this.worker;
+  }
+
+  /**
+   * Configure Tesseract worker for optimal text recognition
+   */
+  private async configureWorker(): Promise<void> {
+    if (!this.worker) return;
+
+    // Set parameters for better accuracy
+    // Using minimal config - let Tesseract use its defaults for most things
+    await this.worker.setParameters({
+      // Preserve interword spaces - this helps with document layout
+      preserve_interword_spaces: "1",
+
+      // Debug level - 0 means no debug output
+      debug_file: "/dev/null",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+  }
+
+  /**
+   * Schedule worker termination after idle period
+   */
+  private scheduleWorkerTermination(): void {
+    if (this.idleTimeout) {
+      clearTimeout(this.idleTimeout);
+    }
+    this.idleTimeout = setTimeout(() => {
+      this.terminateWorker();
+    }, this.WORKER_IDLE_TIMEOUT);
   }
 
   private async performOcr(
@@ -508,10 +658,13 @@ export class TextExtractor {
       // Run OCR with optimized settings for US-English text
       const result = await worker.recognize(imageUrl);
 
+      // Schedule worker termination after use
+      this.scheduleWorkerTermination();
+
       let extractedText = result.data.text?.trim() || "";
       const confidence = result.data.confidence || 0;
 
-      // Light post-processing for US-English text
+      // Post-processing for US-English text
       extractedText = this.postProcessEnglishText(extractedText);
 
       return { text: extractedText, confidence };
@@ -539,18 +692,33 @@ export class TextExtractor {
     // Normalize line endings
     cleaned = cleaned.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-    // Fix common OCR character confusions (be conservative)
-    // Only fix obvious errors that are clearly wrong
+    // Fix common OCR character confusions for US-English
     const ocrCorrections: [RegExp, string][] = [
-      [/\b0(?=\d{3,4}\b)/g, "O"], // 0 followed by 3-4 digits is likely O (year codes)
+      // Common character swaps
+      [/[\u2018\u2019]/g, "'"], // Smart quotes to straight
+      [/[\u201C\u201D]/g, '"'], // Smart double quotes
+      [/\u2014/g, "--"], // Em dash
+      [/\u2013/g, "-"], // En dash
+
+      // Common OCR errors
+      [/\|/g, "I"], // Pipe to capital I
+      [/0(?=\s|$)/g, "O"], // Isolated 0 to O
+      [/([A-Z])1([A-Z])/g, "$1I$2"], // 1 between capitals to I
+      [/([a-z])1([a-z])/g, "$1l$2"], // 1 between lowercase to l
+
+      // Fix common word errors - spaces before contractions
+      [/\s+'(?=ll|re|ve|s|d|m)\b/g, "'"], // Fix spacing with contractions
+
+      // Normalize multiple spaces
+      [/  +/g, " "],
+
+      // Fix hyphenation at line breaks (common in documents)
+      [/([a-zA-Z])-\s*\n\s*([a-zA-Z])/g, "$1$2"],
     ];
 
     for (const [pattern, replacement] of ocrCorrections) {
       cleaned = cleaned.replace(pattern, replacement);
     }
-
-    // Normalize multiple spaces to single space
-    cleaned = cleaned.replace(/[ \t]+/g, " ");
 
     // Normalize paragraph breaks (max 2)
     cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
@@ -562,6 +730,10 @@ export class TextExtractor {
    * Terminate the worker to free resources
    */
   async terminateWorker(): Promise<void> {
+    if (this.idleTimeout) {
+      clearTimeout(this.idleTimeout);
+      this.idleTimeout = null;
+    }
     if (this.worker) {
       await this.worker.terminate();
       this.worker = null;
@@ -569,20 +741,11 @@ export class TextExtractor {
     }
   }
 
-  private fileToDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result;
-        if (typeof result === "string") {
-          resolve(result);
-        } else {
-          reject(new Error("FileReader did not return a string"));
-        }
-      };
-      reader.onerror = () => reject(new Error("Failed to read file"));
-      reader.readAsDataURL(file);
-    });
+  /**
+   * Sanitize extracted text to prevent XSS
+   */
+  private sanitizeText(text: string): string {
+    return DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
   }
 
   async extractFromUrl(url: string): Promise<ExtractedContent> {

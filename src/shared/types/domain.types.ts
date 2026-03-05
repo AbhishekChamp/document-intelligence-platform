@@ -1,15 +1,20 @@
-export type Severity = 'low' | 'medium' | 'high';
-export type IssueType = 'spell' | 'grammar' | 'readability' | 'compliance' | 'confidence';
+export type Severity = "low" | "medium" | "high";
+export type IssueType =
+  | "spell"
+  | "grammar"
+  | "readability"
+  | "compliance"
+  | "confidence";
 
 export interface Token {
   text: string;
   startIndex: number;
   endIndex: number;
-  type: 'word' | 'punctuation' | 'whitespace' | 'number' | 'symbol';
+  type: "word" | "punctuation" | "whitespace" | "number" | "symbol";
 }
 
 export interface DocumentMetadata {
-  sourceType: 'html' | 'svg' | 'pdf' | 'image' | 'text';
+  sourceType: "html" | "svg" | "pdf" | "image" | "text";
   extractedAt: number;
   ocrConfidence?: number;
   fileName?: string;
@@ -74,6 +79,14 @@ export interface ValidationEngine {
   version: string;
   enabled: boolean;
   analyze(document: NormalizedDocument): Promise<ValidationIssue[]>;
+}
+
+export interface MetricsEngine {
+  name: string;
+  version: string;
+  enabled: boolean;
+  analyze(document: NormalizedDocument): Promise<void>;
+  getMetrics(): ReadabilityMetrics | null;
 }
 
 export interface EngineConfig {

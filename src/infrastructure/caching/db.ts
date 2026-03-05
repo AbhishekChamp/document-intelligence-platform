@@ -1,5 +1,5 @@
-import { DB_NAME, DB_VERSION, STORE_NAMES } from '../../shared/constants';
-import type { AnalysisResult } from '../../shared/types/domain.types';
+import { DB_NAME, DB_VERSION, STORE_NAMES } from "../../shared/constants";
+import type { AnalysisResult } from "../../shared/types/domain.types";
 
 class DatabaseManager {
   private db: IDBDatabase | null = null;
@@ -18,20 +18,33 @@ class DatabaseManager {
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
+        const oldVersion = event.oldVersion;
 
-        if (!db.objectStoreNames.contains(STORE_NAMES.documents)) {
-          db.createObjectStore(STORE_NAMES.documents, { keyPath: 'id' });
+        // Migration from version 0 to 1 (initial setup)
+        if (oldVersion < 1) {
+          if (!db.objectStoreNames.contains(STORE_NAMES.documents)) {
+            db.createObjectStore(STORE_NAMES.documents, { keyPath: "id" });
+          }
+
+          if (!db.objectStoreNames.contains(STORE_NAMES.analyses)) {
+            const analysisStore = db.createObjectStore(STORE_NAMES.analyses, {
+              keyPath: "id",
+            });
+            analysisStore.createIndex("documentId", "documentId", {
+              unique: false,
+            });
+            analysisStore.createIndex("analyzedAt", "analyzedAt", {
+              unique: false,
+            });
+          }
+
+          if (!db.objectStoreNames.contains(STORE_NAMES.settings)) {
+            db.createObjectStore(STORE_NAMES.settings, { keyPath: "key" });
+          }
         }
 
-        if (!db.objectStoreNames.contains(STORE_NAMES.analyses)) {
-          const analysisStore = db.createObjectStore(STORE_NAMES.analyses, { keyPath: 'id' });
-          analysisStore.createIndex('documentId', 'documentId', { unique: false });
-          analysisStore.createIndex('analyzedAt', 'analyzedAt', { unique: false });
-        }
-
-        if (!db.objectStoreNames.contains(STORE_NAMES.settings)) {
-          db.createObjectStore(STORE_NAMES.settings, { keyPath: 'key' });
-        }
+        // Future migrations go here:
+        // if (oldVersion < 2) { ... }
       };
     });
   }
@@ -39,9 +52,12 @@ class DatabaseManager {
   async saveAnalysis(result: AnalysisResult): Promise<void> {
     const db = await this.init();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAMES.analyses], 'readwrite');
+      const transaction = db.transaction([STORE_NAMES.analyses], "readwrite");
       const store = transaction.objectStore(STORE_NAMES.analyses);
-      const request = store.put({ ...result, id: `${result.documentId}-${result.analyzedAt}` });
+      const request = store.put({
+        ...result,
+        id: `${result.documentId}-${result.analyzedAt}`,
+      });
 
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
@@ -51,9 +67,9 @@ class DatabaseManager {
   async getAnalysesByDocumentId(documentId: string): Promise<AnalysisResult[]> {
     const db = await this.init();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAMES.analyses], 'readonly');
+      const transaction = db.transaction([STORE_NAMES.analyses], "readonly");
       const store = transaction.objectStore(STORE_NAMES.analyses);
-      const index = store.index('documentId');
+      const index = store.index("documentId");
       const request = index.getAll(documentId);
 
       request.onsuccess = () => resolve(request.result as AnalysisResult[]);
@@ -64,7 +80,7 @@ class DatabaseManager {
   async getAllAnalyses(): Promise<AnalysisResult[]> {
     const db = await this.init();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAMES.analyses], 'readonly');
+      const transaction = db.transaction([STORE_NAMES.analyses], "readonly");
       const store = transaction.objectStore(STORE_NAMES.analyses);
       const request = store.getAll();
 
@@ -76,7 +92,7 @@ class DatabaseManager {
   async clearAnalyses(): Promise<void> {
     const db = await this.init();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAMES.analyses], 'readwrite');
+      const transaction = db.transaction([STORE_NAMES.analyses], "readwrite");
       const store = transaction.objectStore(STORE_NAMES.analyses);
       const request = store.clear();
 
@@ -88,7 +104,7 @@ class DatabaseManager {
   async saveSetting<T>(key: string, value: T): Promise<void> {
     const db = await this.init();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAMES.settings], 'readwrite');
+      const transaction = db.transaction([STORE_NAMES.settings], "readwrite");
       const store = transaction.objectStore(STORE_NAMES.settings);
       const request = store.put({ key, value });
 
@@ -100,7 +116,7 @@ class DatabaseManager {
   async getSetting<T>(key: string): Promise<T | null> {
     const db = await this.init();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAMES.settings], 'readonly');
+      const transaction = db.transaction([STORE_NAMES.settings], "readonly");
       const store = transaction.objectStore(STORE_NAMES.settings);
       const request = store.get(key);
 

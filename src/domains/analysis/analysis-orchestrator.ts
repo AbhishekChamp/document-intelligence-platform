@@ -3,6 +3,7 @@ import type {
   AnalysisResult,
   ReadabilityMetrics,
   ValidationEngine,
+  MetricsEngine,
   ValidationIssue,
   DocumentScore,
 } from "../../shared/types/domain.types";
@@ -27,12 +28,19 @@ export interface ProgressStep {
   message: string;
 }
 
+export interface AnalysisOptions {
+  signal?: AbortSignal;
+}
+
 export class AnalysisOrchestrator {
   private engines: Record<string, ValidationEngine> = {
     spell: spellEngine,
     grammar: grammarEngine,
-    readability: readabilityEngine,
     compliance: complianceEngine,
+  };
+
+  private metricsEngines: Record<string, MetricsEngine> = {
+    readability: readabilityEngine,
   };
 
   private confidenceEngine = confidenceEngine;
@@ -43,6 +51,8 @@ export class AnalysisOrchestrator {
     });
   }
 
+  private currentAbortController: AbortController | null = null;
+
   async analyze(
     text: string,
     mode: AnalysisMode = "full",
@@ -51,7 +61,15 @@ export class AnalysisOrchestrator {
     ocrConfidence?: number,
     onProgress?: (step: ProgressStep) => void,
   ): Promise<AnalysisResult> {
+    // Cancel any ongoing analysis
+    if (this.currentAbortController) {
+      this.currentAbortController.abort();
+    }
+    this.currentAbortController = new AbortController();
+    const signal = this.currentAbortController.signal;
+
     const updateProgress = (percentage: number, message: string) => {
+      if (signal.aborted) return;
       onProgress?.({ percentage, message });
     };
 
@@ -71,12 +89,18 @@ export class AnalysisOrchestrator {
 
     updateProgress(15, "Tokenizing document content...");
 
+    // Check for cancellation
+    if (signal.aborted) {
+      throw new Error("Analysis was cancelled");
+    }
+
     let readabilityMetrics: ReadabilityMetrics | null = null;
 
     if (mode === "full" || mode === "readability") {
       if (readabilityEngine.enabled) {
         updateProgress(25, "Analyzing readability metrics...");
         await readabilityEngine.analyze(document);
+        if (signal.aborted) throw new Error("Analysis was cancelled");
         readabilityMetrics = readabilityEngine.getMetrics();
       }
     }
@@ -90,6 +114,10 @@ export class AnalysisOrchestrator {
       ocrConfidence,
       updateProgress,
     );
+
+    if (signal.aborted) {
+      throw new Error("Analysis was cancelled");
+    }
 
     updateProgress(90, "Finalizing analysis results...");
 
@@ -110,8 +138,28 @@ export class AnalysisOrchestrator {
       enginesUsed: this.getEnginesUsed(mode),
     };
 
+    if (signal.aborted) {
+      throw new Error("Analysis was cancelled");
+    }
+
     updateProgress(100, "Analysis complete!");
+
+    // Clear the abort controller on successful completion
+    if (this.currentAbortController?.signal === signal) {
+      this.currentAbortController = null;
+    }
+
     return result;
+  }
+
+  /**
+   * Cancel any ongoing analysis
+   */
+  cancelAnalysis(): void {
+    if (this.currentAbortController) {
+      this.currentAbortController.abort();
+      this.currentAbortController = null;
+    }
   }
 
   private async analyzeWithMode(
@@ -149,7 +197,8 @@ export class AnalysisOrchestrator {
     } else if (mode === "readability") {
       updateProgress?.(50, "Calculating readability metrics...");
       if (readabilityEngine.enabled) {
-        const readabilityIssues = await readabilityEngine.analyze(document);
+        await readabilityEngine.analyze(document);
+        const readabilityIssues = readabilityEngine.getIssues();
         allIssues.push(...readabilityIssues);
       }
     } else if (mode === "compliance") {
@@ -204,22 +253,27 @@ export class AnalysisOrchestrator {
   }
 
   getEngines() {
-    return Object.values(this.engines);
+    return [
+      ...Object.values(this.engines),
+      ...Object.values(this.metricsEngines),
+    ];
   }
 
   toggleEngine(name: string): void {
-    const engine = Object.values(this.engines).find((e) =>
-      e.name.toLowerCase().includes(name.toLowerCase()),
-    );
+    const engine = [
+      ...Object.values(this.engines),
+      ...Object.values(this.metricsEngines),
+    ].find((e) => e.name.toLowerCase().includes(name.toLowerCase()));
     if (engine) {
       engine.enabled = !engine.enabled;
     }
   }
 
   setEngineEnabled(name: string, enabled: boolean): void {
-    const engine = Object.values(this.engines).find((e) =>
-      e.name.toLowerCase().includes(name.toLowerCase()),
-    );
+    const engine = [
+      ...Object.values(this.engines),
+      ...Object.values(this.metricsEngines),
+    ].find((e) => e.name.toLowerCase().includes(name.toLowerCase()));
     if (engine) {
       engine.enabled = enabled;
     }
