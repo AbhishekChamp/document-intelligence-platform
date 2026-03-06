@@ -3,6 +3,7 @@ import { cn } from "../../shared/utils/cn";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
+import { NetworkStatusIndicator } from "../../shared/components/NetworkStatus";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -32,6 +33,7 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({ children }) => {
           <Footer />
         </div>
       </div>
+      <NetworkStatusIndicator />
     </div>
   );
 };

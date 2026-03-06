@@ -1,7 +1,8 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { Card, CardContent } from './Card';
-import { Button } from './Button';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Card, CardContent } from "./Card";
+import { Button } from "./Button";
+import { AlertTriangle, RefreshCw, Download } from "lucide-react";
+import { errorTracker } from "../../infrastructure/monitoring/error-tracker";
 
 interface Props {
   children: ReactNode;
@@ -16,7 +17,7 @@ interface State {
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
-    error: null
+    error: null,
   };
 
   public static getDerivedStateFromError(error: Error): State {
@@ -24,12 +25,33 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    console.error("Uncaught error:", error, errorInfo);
+
+    // Track error for debugging
+    errorTracker.track(
+      error,
+      {
+        component: "ErrorBoundary",
+        hasErrorBoundary: true,
+      },
+      errorInfo.componentStack || undefined,
+    );
   }
 
   private handleReset = () => {
     this.setState({ hasError: false, error: null });
     window.location.reload();
+  };
+
+  private handleExportErrors = () => {
+    const errorReport = errorTracker.exportErrors();
+    const blob = new Blob([errorReport], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `error-report-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   public render() {
@@ -56,10 +78,20 @@ export class ErrorBoundary extends Component<Props, State> {
                   {this.state.error.message}
                 </pre>
               )}
-              <Button onClick={this.handleReset} className="w-full">
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh Page
-              </Button>
+              <div className="space-y-3">
+                <Button onClick={this.handleReset} className="w-full">
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh Page
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={this.handleExportErrors}
+                  className="w-full"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Error Report
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

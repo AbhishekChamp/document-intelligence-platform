@@ -21,6 +21,8 @@ import {
   Cpu,
   AlertTriangle,
   ExternalLink,
+  Cloud,
+  Server,
 } from "lucide-react";
 import { GitHubIcon, LinkedInIcon } from "../../shared/components/icons";
 
@@ -555,6 +557,55 @@ export const AboutPage: React.FC = () => {
                 <LinkedInIcon className="w-4 h-4" />
                 LinkedIn
               </a>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Deployment Info */}
+      <Card className="bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/10 dark:to-blue-900/10 border-cyan-100 dark:border-cyan-800">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-3 text-cyan-800 dark:text-cyan-300">
+            <Cloud className="w-6 h-6" />
+            Deployment
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-xl">
+              <div className="w-8 h-8 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Server className="w-4 h-4 text-cyan-600" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-cyan-800 dark:text-cyan-300">
+                  Hosted on Netlify
+                </h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  This application is deployed on Netlify's global CDN for fast,
+                  reliable access worldwide. Features include:
+                </p>
+                <ul className="text-sm text-gray-600 dark:text-gray-400 mt-2 space-y-1">
+                  <li>• Automatic HTTPS encryption</li>
+                  <li>• Global edge network caching</li>
+                  <li>• Continuous deployment from Git</li>
+                  <li>• Automatic asset optimization</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-xl">
+              <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Lock className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-emerald-800 dark:text-emerald-300">
+                  Security & Performance
+                </h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Production-grade security with Content Security Policy (CSP),
+                  HSTS, and optimized caching strategies for static assets.
+                </p>
+              </div>
             </div>
           </div>
         </CardContent>

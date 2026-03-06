@@ -1,0 +1,12 @@
+# Netlify Redirects for DocuIntel SPA
+# https://docs.netlify.com/routing/redirects/
+
+# Redirect HTTP to HTTPS
+http://* https://:splat 301!
+
+# Single Page Application (SPA) fallback
+# All routes should serve index.html for client-side routing
+/* /index.html 200
+
+# Optional: Custom 404 page (if you create one)
+# /404 /404.html 404

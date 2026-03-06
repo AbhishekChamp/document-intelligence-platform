@@ -1,6 +1,7 @@
 import React, { memo } from "react";
-import { Heart } from "lucide-react";
+import { Heart, Package } from "lucide-react";
 import { GitHubIcon, LinkedInIcon } from "../../shared/components/icons";
+import { APP_VERSION } from "../../shared/constants";
 
 const FooterComponent: React.FC = () => {
   return (
@@ -46,11 +47,17 @@ const FooterComponent: React.FC = () => {
         </div>
 
         {/* Additional Info */}
-        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-800 text-center">
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            Privacy-first document analysis. All processing happens locally in
-            your browser.
-          </p>
+        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-400 dark:text-gray-500">
+            <p>
+              Privacy-first document analysis. All processing happens locally in
+              your browser.
+            </p>
+            <div className="flex items-center gap-1">
+              <Package className="w-3 h-3" />
+              <span>v{APP_VERSION}</span>
+            </div>
+          </div>
         </div>
       </div>
     </footer>

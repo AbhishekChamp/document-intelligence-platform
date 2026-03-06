@@ -60,7 +60,29 @@ class DatabaseManager {
       });
 
       request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      request.onerror = () => {
+        const error = request.error;
+        if (error?.name === "QuotaExceededError") {
+          reject(
+            new Error(
+              "Storage quota exceeded. Please clear some history or export and delete old analyses.",
+            ),
+          );
+        } else {
+          reject(error);
+        }
+      };
+
+      transaction.onabort = () => {
+        const error = transaction.error;
+        if (error?.name === "QuotaExceededError") {
+          reject(
+            new Error(
+              "Storage quota exceeded. Please clear some history or export and delete old analyses.",
+            ),
+          );
+        }
+      };
     });
   }
 
@@ -95,6 +117,19 @@ class DatabaseManager {
       const transaction = db.transaction([STORE_NAMES.analyses], "readwrite");
       const store = transaction.objectStore(STORE_NAMES.analyses);
       const request = store.clear();
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async deleteAnalysis(documentId: string, analyzedAt: number): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORE_NAMES.analyses], "readwrite");
+      const store = transaction.objectStore(STORE_NAMES.analyses);
+      const id = `${documentId}-${analyzedAt}`;
+      const request = store.delete(id);
 
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);

@@ -29,32 +29,43 @@ export class TextExtractor {
   private workerPromise: Promise<Worker> | null = null;
   private idleTimeout: ReturnType<typeof setTimeout> | null = null;
   private readonly WORKER_IDLE_TIMEOUT = 120000; // 2 minutes for OCR operations
+  private isDestroyed = false;
+  private pendingOperations = 0;
 
   async extractFromFile(file: File): Promise<ExtractedContent> {
-    const mimeType = file.type;
-    const fileName = file.name.toLowerCase();
-
-    // Determine file type by extension if MIME type is generic
-    if (fileName.endsWith(".svg") || mimeType === "image/svg+xml") {
-      return this.extractFromSvg(file);
-    }
-    if (fileName.endsWith(".pdf") || mimeType === "application/pdf") {
-      return this.extractFromPdf(file);
-    }
-    if (
-      fileName.match(/\.(jpg|jpeg|png|webp|gif|bmp|tiff)$/) ||
-      mimeType.startsWith("image/")
-    ) {
-      return this.extractFromImage(file);
+    if (this.isDestroyed) {
+      throw new Error("TextExtractor has been destroyed");
     }
 
-    switch (mimeType) {
-      case "text/plain":
-        return this.extractFromText(file);
-      case "text/html":
-        return this.extractFromHtml(file);
-      default:
-        return this.extractFromText(file);
+    this.pendingOperations++;
+    try {
+      const mimeType = file.type;
+      const fileName = file.name.toLowerCase();
+
+      // Determine file type by extension if MIME type is generic
+      if (fileName.endsWith(".svg") || mimeType === "image/svg+xml") {
+        return this.extractFromSvg(file);
+      }
+      if (fileName.endsWith(".pdf") || mimeType === "application/pdf") {
+        return this.extractFromPdf(file);
+      }
+      if (
+        fileName.match(/\.(jpg|jpeg|png|webp|gif|bmp|tiff)$/) ||
+        mimeType.startsWith("image/")
+      ) {
+        return this.extractFromImage(file);
+      }
+
+      switch (mimeType) {
+        case "text/plain":
+          return await this.extractFromText(file);
+        case "text/html":
+          return await this.extractFromHtml(file);
+        default:
+          return await this.extractFromText(file);
+      }
+    } finally {
+      this.pendingOperations--;
     }
   }
 
@@ -735,10 +746,44 @@ export class TextExtractor {
       this.idleTimeout = null;
     }
     if (this.worker) {
-      await this.worker.terminate();
+      try {
+        await this.worker.terminate();
+      } catch (error) {
+        console.warn("Error terminating worker:", error);
+      }
       this.worker = null;
       this.workerPromise = null;
     }
+  }
+
+  /**
+   * Destroy the extractor and cleanup all resources
+   */
+  destroy(): void {
+    this.isDestroyed = true;
+
+    if (this.idleTimeout) {
+      clearTimeout(this.idleTimeout);
+      this.idleTimeout = null;
+    }
+
+    // Force terminate worker even if operations are pending
+    if (this.worker) {
+      try {
+        this.worker.terminate();
+      } catch {
+        // Ignore termination errors during destroy
+      }
+      this.worker = null;
+      this.workerPromise = null;
+    }
+  }
+
+  /**
+   * Check if there are pending operations
+   */
+  hasPendingOperations(): boolean {
+    return this.pendingOperations > 0;
   }
 
   /**

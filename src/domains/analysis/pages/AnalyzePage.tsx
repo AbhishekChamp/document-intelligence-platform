@@ -1,5 +1,12 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+} from "react";
 import toast from "react-hot-toast";
+import { performanceMonitor } from "../../../infrastructure/monitoring/performance";
 import { FileUpload } from "../../../shared/components/FileUpload";
 import { TextEditor } from "../../../shared/components/TextEditor";
 import { IssueList } from "../../../shared/components/IssueList";
@@ -103,39 +110,104 @@ export const AnalyzePage: React.FC = () => {
     [setAnalysisProgress, setAnalysisProgressMessage],
   );
 
+  const analysisAbortController = useRef<AbortController | null>(null);
+  const analysisTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (analysisAbortController.current) {
+        analysisAbortController.current.abort();
+      }
+      if (analysisTimeoutRef.current) {
+        clearTimeout(analysisTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleFileSelect = useCallback(
     async (file: File) => {
+      // Cancel any existing analysis
+      if (analysisAbortController.current) {
+        analysisAbortController.current.abort();
+      }
+      analysisAbortController.current = new AbortController();
+      const signal = analysisAbortController.current.signal;
+
       setIsAnalyzing(true);
       handleProgress(0, "Starting analysis...");
 
-      try {
-        const result = await documentProcessor.processFile(
-          file,
-          analysisMode,
-          ({ percentage, message }) => handleProgress(percentage, message),
+      // Set a timeout for the analysis (5 minutes max)
+      const TIMEOUT_MS = 5 * 60 * 1000;
+      analysisTimeoutRef.current = setTimeout(() => {
+        if (analysisAbortController.current) {
+          analysisAbortController.current.abort();
+        }
+        toast.error(
+          "Analysis timed out. The file may be too large or complex.",
         );
+        setIsAnalyzing(false);
+      }, TIMEOUT_MS);
+
+      try {
+        const result = await performanceMonitor.measure(
+          "file-analysis",
+          () =>
+            documentProcessor.processFile(
+              file,
+              analysisMode,
+              ({ percentage, message }) => {
+                if (!signal.aborted) {
+                  handleProgress(percentage, message);
+                }
+              },
+            ),
+          { mode: analysisMode, fileType: file.type, fileSize: file.size },
+        );
+
+        if (signal.aborted) {
+          throw new Error("Analysis was cancelled");
+        }
 
         setCurrentAnalysis(result);
         addDocumentId(result.documentId);
+
         // Save to history - non-critical operation, don't fail if it errors
         try {
           await db.saveAnalysis(result);
         } catch (dbError) {
           console.warn("Failed to save analysis to history:", dbError);
-          // Don't show error to user, analysis still succeeded
+          if ((dbError as Error).message?.includes("quota")) {
+            toast.error("Storage full. Please clear some history.", {
+              icon: "💾",
+            });
+          }
         }
+
         setShowUpload(false);
         toast.success(
           `Analysis complete! Found ${result.issues.length} issues.`,
         );
       } catch (error) {
-        console.error("Analysis failed:", error);
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error";
-        toast.error(`Analysis failed: ${errorMessage}`);
+        if (
+          (error as Error).name === "AbortError" ||
+          (error as Error).message?.includes("cancelled")
+        ) {
+          toast.error("Analysis was cancelled");
+        } else {
+          console.error("Analysis failed:", error);
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+          toast.error(`Analysis failed: ${errorMessage}`);
+        }
       } finally {
+        if (analysisTimeoutRef.current) {
+          clearTimeout(analysisTimeoutRef.current);
+          analysisTimeoutRef.current = null;
+        }
         setIsAnalyzing(false);
         setAnalysisProgressMessage("");
+        analysisAbortController.current = null;
       }
     },
     [

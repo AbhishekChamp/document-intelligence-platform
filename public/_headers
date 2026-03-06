@@ -1,0 +1,27 @@
+# Netlify Custom Headers
+# https://docs.netlify.com/routing/headers/
+
+# Global security headers (supplementing netlify.toml)
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# Cache static assets for 1 year (versioned files)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Cache dictionaries and workers for 1 day
+/dictionaries/*
+  Cache-Control: public, max-age=86400
+
+/workers/*
+  Cache-Control: public, max-age=86400
+
+# Cache PDF worker for 1 day
+/pdf.worker.min.mjs
+  Cache-Control: public, max-age=86400
+
+# Service Worker - don't cache
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate

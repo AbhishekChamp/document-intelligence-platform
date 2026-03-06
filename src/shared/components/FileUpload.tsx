@@ -19,6 +19,19 @@ interface FileUploadProps {
   className?: string;
 }
 
+// File type signatures (magic numbers) for validation
+const FILE_SIGNATURES: Record<string, number[]> = {
+  "image/png": [0x89, 0x50, 0x4e, 0x47],
+  "image/jpeg": [0xff, 0xd8, 0xff],
+  "image/gif": [0x47, 0x49, 0x46],
+  "application/pdf": [0x25, 0x50, 0x44, 0x46],
+};
+
+interface FileValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
 // File types categorized by accuracy
 const RECOMMENDED_TYPES = [
   {
@@ -103,26 +116,65 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   }, []);
 
   const validateFile = useCallback(
-    (file: File): string | null => {
+    async (file: File): Promise<FileValidationResult> => {
+      // Check file size
       if (file.size > maxSize) {
-        return `File too large. Maximum size is ${(maxSize / 1024 / 1024).toFixed(1)}MB`;
+        return {
+          valid: false,
+          error: `File too large. Maximum size is ${(maxSize / 1024 / 1024).toFixed(1)}MB`,
+        };
       }
-      return null;
+
+      // Check file type
+      const allowedTypes = accept.split(",").map((t) => t.trim().toLowerCase());
+      const fileExt = `.${file.name.split(".").pop()?.toLowerCase()}`;
+
+      // Allow if extension matches
+      if (allowedTypes.includes(fileExt)) {
+        return { valid: true };
+      }
+
+      // Validate magic numbers for critical file types
+      const signature = FILE_SIGNATURES[file.type];
+      if (signature) {
+        try {
+          const arrayBuffer = await file.slice(0, 8).arrayBuffer();
+          const bytes = new Uint8Array(arrayBuffer);
+          const matches = signature.every((byte, i) => bytes[i] === byte);
+
+          if (!matches) {
+            return {
+              valid: false,
+              error: `File type mismatch. The file does not appear to be a valid ${file.type} file.`,
+            };
+          }
+        } catch {
+          // If we can't read the file, still allow it but log warning
+          console.warn("Could not validate file signature for", file.name);
+        }
+      }
+
+      // Check for empty files
+      if (file.size === 0) {
+        return { valid: false, error: "File is empty" };
+      }
+
+      return { valid: true };
     },
-    [maxSize],
+    [maxSize, accept],
   );
 
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragOver(false);
       setError(null);
 
       const file = e.dataTransfer.files[0];
       if (file) {
-        const validationError = validateFile(file);
-        if (validationError) {
-          setError(validationError);
+        const validation = await validateFile(file);
+        if (!validation.valid) {
+          setError(validation.error || "Invalid file");
           return;
         }
         onFileSelect(file);
@@ -132,13 +184,13 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   );
 
   const handleFileInput = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       setError(null);
       const file = e.target.files?.[0];
       if (file) {
-        const validationError = validateFile(file);
-        if (validationError) {
-          setError(validationError);
+        const validation = await validateFile(file);
+        if (!validation.valid) {
+          setError(validation.error || "Invalid file");
           return;
         }
         onFileSelect(file);

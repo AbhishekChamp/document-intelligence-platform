@@ -1,6 +1,7 @@
 # DocuIntel - Document Intelligence Platform
 
 [![CI](https://github.com/AbhishekChamp/document-intelligence-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/AbhishekChamp/document-intelligence-platform/actions/workflows/ci.yml)
+[![Netlify Status](https://api.netlify.com/api/v1/badges/YOUR_NETLIFY_SITE_ID/deploy-status)](https://app.netlify.com/sites/YOUR_NETLIFY_SITE_NAME/deploys)
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![React](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
@@ -69,6 +70,86 @@ pnpm build
 # Preview production build
 pnpm preview
 ```
+
+## 🌐 Deployment
+
+### Deploy to Netlify
+
+This project is configured for easy deployment to Netlify with all necessary settings included.
+
+#### Option 1: One-Click Deploy (Recommended)
+
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/AbhishekChamp/document-intelligence-platform)
+
+#### Option 2: Manual Deploy via Git
+
+1. **Push to GitHub**
+
+   ```bash
+   git push origin main
+   ```
+
+2. **Connect to Netlify**
+   - Go to [Netlify Dashboard](https://app.netlify.com/)
+   - Click "Add new site" → "Import an existing project"
+   - Select GitHub and authorize Netlify
+   - Select this repository
+
+3. **Build Settings** (auto-detected from `netlify.toml`)
+   - Build command: `pnpm build`
+   - Publish directory: `dist`
+   - Node version: 20
+
+4. **Deploy**
+   - Click "Deploy site"
+   - Netlify will automatically build and deploy your site
+
+#### Option 3: Netlify CLI
+
+```bash
+# Install Netlify CLI
+npm install -g netlify-cli
+
+# Login to Netlify
+netlify login
+
+# Initialize site
+netlify init
+
+# Deploy
+netlify deploy --prod --dir=dist
+```
+
+### Netlify Configuration
+
+The project includes a complete `netlify.toml` configuration with:
+
+- **Build settings** — Optimized for pnpm and Node 20
+- **SPA redirects** — Client-side routing support
+- **Security headers** — CSP, HSTS, X-Frame-Options, etc.
+- **Asset caching** — Optimized cache headers for static assets
+- **Performance** — Automatic asset optimization
+
+### Environment Variables
+
+No environment variables are required for basic deployment. The app is fully client-side.
+
+Optional variables for advanced configuration:
+
+| Variable           | Description     | Default           |
+| ------------------ | --------------- | ----------------- |
+| `NODE_VERSION`     | Node.js version | 20                |
+| `VITE_APP_VERSION` | App version     | from package.json |
+
+### Post-Deployment Checklist
+
+- [ ] Verify site is accessible via HTTPS
+- [ ] Test all routes (SPA navigation)
+- [ ] Upload a test document to verify analysis works
+- [ ] Check browser console for any errors
+- [ ] Verify service worker registration (check DevTools > Application)
+- [ ] Test dark mode toggle
+- [ ] Run Lighthouse audit (can be automated with Netlify plugin)
 
 ## 🧪 Testing
 

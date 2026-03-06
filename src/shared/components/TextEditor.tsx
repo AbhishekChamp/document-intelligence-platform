@@ -1,6 +1,6 @@
-import React, { useMemo, useCallback } from 'react';
-import type { ValidationIssue } from '../types/domain.types';
-import { SEVERITY_COLORS } from '../constants';
+import React, { useMemo, useCallback, useRef, useEffect } from "react";
+import type { ValidationIssue } from "../types/domain.types";
+import { SEVERITY_COLORS } from "../constants";
 
 interface TextEditorProps {
   text: string;
@@ -21,10 +21,12 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   readOnly = false,
   onChange,
   filterType,
-  filterSeverity
+  filterSeverity,
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selectedIssueRef = useRef<HTMLSpanElement>(null);
   const filteredIssues = useMemo(() => {
-    return issues.filter(issue => {
+    return issues.filter((issue) => {
       if (filterType && issue.type !== filterType) return false;
       if (filterSeverity && issue.severity !== filterSeverity) return false;
       return true;
@@ -32,20 +34,29 @@ export const TextEditor: React.FC<TextEditorProps> = ({
   }, [issues, filterType, filterSeverity]);
 
   const segments = useMemo(() => {
-    const result: Array<{ text: string; issue?: ValidationIssue; isIssue: boolean }> = [];
+    const result: Array<{
+      text: string;
+      issue?: ValidationIssue;
+      isIssue: boolean;
+    }> = [];
     let lastIndex = 0;
 
-    const sortedIssues = [...filteredIssues].sort((a, b) => a.startIndex - b.startIndex);
+    const sortedIssues = [...filteredIssues].sort(
+      (a, b) => a.startIndex - b.startIndex,
+    );
 
     for (const issue of sortedIssues) {
       if (issue.startIndex > lastIndex) {
-        result.push({ text: text.slice(lastIndex, issue.startIndex), isIssue: false });
+        result.push({
+          text: text.slice(lastIndex, issue.startIndex),
+          isIssue: false,
+        });
       }
 
       result.push({
         text: text.slice(issue.startIndex, issue.endIndex),
         issue,
-        isIssue: true
+        isIssue: true,
       });
 
       lastIndex = issue.endIndex;
@@ -58,23 +69,60 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     return result.length > 0 ? result : [{ text, isIssue: false }];
   }, [text, filteredIssues]);
 
-  const handleIssueClick = useCallback((issue: ValidationIssue) => {
-    onIssueClick?.(issue);
-  }, [onIssueClick]);
+  const handleIssueClick = useCallback(
+    (issue: ValidationIssue) => {
+      onIssueClick?.(issue);
+    },
+    [onIssueClick],
+  );
+
+  // Scroll to selected issue when it changes
+  useEffect(() => {
+    if (selectedIssueId && selectedIssueRef.current && containerRef.current) {
+      const element = selectedIssueRef.current;
+      const container = containerRef.current;
+
+      // Calculate the element's position relative to the container
+      const elementRect = element.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      // Check if element is outside the visible area
+      const isAbove = elementRect.top < containerRect.top;
+      const isBelow = elementRect.bottom > containerRect.bottom;
+
+      if (isAbove || isBelow) {
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+    }
+  }, [selectedIssueId]);
 
   if (readOnly) {
     return (
-      <div className="relative w-full h-full overflow-auto bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+      <div
+        ref={containerRef}
+        className="relative w-full h-full overflow-auto bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6"
+      >
         <div className="prose prose-lg max-w-none whitespace-pre-wrap font-mono text-gray-800 dark:text-gray-200 leading-relaxed">
-          {segments.map((segment, index) => (
+          {segments.map((segment, index) =>
             segment.isIssue && segment.issue ? (
               <span
                 key={index}
+                ref={
+                  segment.issue.id === selectedIssueId
+                    ? selectedIssueRef
+                    : undefined
+                }
                 className="cursor-pointer transition-all duration-200 border-b-2 hover:bg-opacity-20"
                 style={{
                   backgroundColor: `${SEVERITY_COLORS[segment.issue.severity]}20`,
                   borderBottomColor: SEVERITY_COLORS[segment.issue.severity],
-                  boxShadow: segment.issue.id === selectedIssueId ? `0 0 0 2px ${SEVERITY_COLORS[segment.issue.severity]}40` : 'none'
+                  boxShadow:
+                    segment.issue.id === selectedIssueId
+                      ? `0 0 0 3px ${SEVERITY_COLORS[segment.issue.severity]}60, 0 0 0 6px ${SEVERITY_COLORS[segment.issue.severity]}20`
+                      : "none",
                 }}
                 onClick={() => handleIssueClick(segment.issue!)}
                 title={`${segment.issue.message} (${segment.issue.severity})`}
@@ -83,8 +131,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
               </span>
             ) : (
               <span key={index}>{segment.text}</span>
-            )
-          ))}
+            ),
+          )}
         </div>
       </div>
     );
