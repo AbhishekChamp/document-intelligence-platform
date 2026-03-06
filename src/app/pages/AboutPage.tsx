@@ -31,7 +31,7 @@ const FEATURES = [
     icon: CheckCircle,
     title: "Spell Checking",
     description:
-      "Advanced spell checking with Levenshtein distance algorithm for intelligent suggestions. Optimized for US-English.",
+      "Professional-grade spell checking using Typo.js with standard Hunspell dictionaries. Properly handles plurals, verb forms, and US-English variations.",
     color: "text-blue-500",
     bgColor: "bg-blue-50 dark:bg-blue-900/20",
   },
@@ -127,6 +127,12 @@ const TECH_STACK = [
     name: "IndexedDB",
     category: "Storage",
     description: "Client-side database for analysis history",
+  },
+  {
+    name: "Typo.js",
+    category: "Spell Checking",
+    description:
+      "Pure JavaScript spell checker with Hunspell dictionary support",
   },
 ];
 

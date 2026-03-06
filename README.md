@@ -1,7 +1,6 @@
 # DocuIntel - Document Intelligence Platform
 
 [![CI](https://github.com/AbhishekChamp/document-intelligence-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/AbhishekChamp/document-intelligence-platform/actions/workflows/ci.yml)
-[![Netlify Status](https://api.netlify.com/api/v1/badges/YOUR_NETLIFY_SITE_ID/deploy-status)](https://app.netlify.com/sites/YOUR_NETLIFY_SITE_NAME/deploys)
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![React](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
@@ -13,7 +12,7 @@
 
 ### Document Analysis
 
-- **Spell Checking** — Comprehensive US-English dictionary with intelligent suggestions
+- **Spell Checking** — Professional-grade spell checking using Typo.js with standard Hunspell dictionaries. Properly handles plurals, verb forms, and US-English variations.
 - **Grammar Analysis** — Detects repeated words, punctuation errors, contractions
 - **Readability Metrics** — Flesch Reading Ease, grade level, sentence complexity
 - **Compliance Checking** — Enterprise policy simulation, PII detection, tone analysis
@@ -181,6 +180,7 @@ pnpm test:ui
 | **OCR**              | Tesseract.js                   |
 | **PDF Parsing**      | PDF.js                         |
 | **Storage**          | IndexedDB                      |
+| **Spell Checking**   | Typo.js (Hunspell-compatible)  |
 | **Testing**          | Vitest + React Testing Library |
 
 ## 📁 Architecture
@@ -287,6 +287,7 @@ MIT License — see [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
+- [Typo.js](https://github.com/cfinst/tny-desktop) for spell checking with Hunspell dictionary support
 - [Tesseract.js](https://github.com/naptha/tesseract.js) for OCR capabilities
 - [PDF.js](https://github.com/mozilla/pdf.js) for PDF parsing
 - [React](https://react.dev/) for the UI framework
