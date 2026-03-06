@@ -8,6 +8,31 @@
 
 > A modern, privacy-first document quality analysis platform built with React, TypeScript, and enterprise-grade architecture.
 
+## 🔴 Live Demo
+
+Try the platform instantly — no signup required.
+
+🌐 **Live Application**  
+https://docuintelplatform.netlify.app/
+
+Upload documents such as:
+
+• TXT  
+• HTML  
+• SVG  
+• PDF  
+• Images (PNG, JPG, WEBP)
+
+and instantly receive:
+
+✔ Spell analysis  
+✔ Grammar insights  
+✔ Readability metrics  
+✔ Compliance checks  
+✔ Document quality score
+
+All processing happens **100% inside your browser**.
+
 ## 🌟 Features
 
 ### Document Analysis
