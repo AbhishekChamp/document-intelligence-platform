@@ -36,8 +36,6 @@ coverage
 # Test files
 test-*.ts
 test-*.html
-*.test.ts
-*.spec.ts
 verify-*.html
 
 # Temporary files
